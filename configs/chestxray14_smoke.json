@@ -1,0 +1,40 @@
+{
+  "experiment_name": "smoke_cnn_cpu",
+  "seed": 42,
+  "dataset": {
+    "manifest_path": "artifacts/manifests/chestxray14_binary.csv",
+    "image_size": 224,
+    "batch_size": 8,
+    "num_workers": 0,
+    "train_subset_size": 64,
+    "eval_subset_size": 32
+  },
+  "model": {
+    "name": "cnn",
+    "pretrained": false,
+    "freeze_backbone": false,
+    "gradcam_target_layer": "features.6"
+  },
+  "training": {
+    "device": "auto",
+    "epochs": 2,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "loss_name": "bce",
+    "early_stopping_patience": 2,
+    "save_every_epoch": false
+  },
+  "evaluation": {
+    "threshold_metric": "f1",
+    "save_predictions": true,
+    "save_plots": true
+  },
+  "interpretation": {
+    "num_examples": 4,
+    "mask_fraction": 0.2,
+    "curve_steps": 8
+  },
+  "output": {
+    "root_dir": "artifacts/experiments"
+  }
+}
