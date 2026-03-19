@@ -2,5 +2,7 @@ __pycache__/
 *.pyc
 .DS_Store
 .venv/
-artifacts/
+artifacts/experiments/*/checkpoints/*
+artifacts/experiments/*/predictions/*
+artifacts/manifests
 *.pt
