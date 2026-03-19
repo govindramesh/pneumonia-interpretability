@@ -6,6 +6,7 @@ from pathlib import Path
 import random
 
 import numpy as np
+from tqdm.auto import tqdm
 
 from .artifacts import plot_class_balance, plot_confusion_matrix, plot_roc_pr, save_side_by_side_explanations, save_top_examples
 from .config import ExperimentConfig
@@ -74,6 +75,10 @@ def _log(message: str) -> None:
     print(message, flush=True)
 
 
+def _progress(iterable: object, description: str, total: int | None = None, leave: bool = False) -> object:
+    return tqdm(iterable, desc=description, total=total, leave=leave, dynamic_ncols=True)
+
+
 def _extract_batch_rows(batch_rows: dict[str, list]) -> list[dict[str, str]]:
     keys = list(batch_rows.keys())
     size = len(batch_rows[keys[0]]) if keys else 0
@@ -90,15 +95,25 @@ def run_inference(model: object, dataloader: object, device: object, criterion: 
     prediction_rows: list[dict[str, str | float]] = []
     labels: list[int] = []
     probabilities: list[float] = []
+    iterator = _progress(
+        dataloader,
+        description=f"Eval [{len(dataloader.dataset)} samples]",
+        total=len(dataloader),
+        leave=False,
+    )
     with torch.no_grad():
-        for images, batch_labels, batch_rows in dataloader:
+        for images, batch_labels, batch_rows in iterator:
             images = images.to(device)
             batch_labels = batch_labels.to(device)
             logits = _flatten_logits(model(images))
+            batch_loss_value = None
             if criterion is not None:
-                total_loss += float(criterion(logits, batch_labels).item()) * images.shape[0]
+                batch_loss_value = float(criterion(logits, batch_labels).item())
+                total_loss += batch_loss_value * images.shape[0]
             probs = torch.sigmoid(logits).detach().cpu().numpy().tolist()
             label_values = batch_labels.detach().cpu().numpy().astype(int).tolist()
+            if batch_loss_value is not None:
+                iterator.set_postfix(loss=f"{batch_loss_value:.4f}")
             row_dicts = _extract_batch_rows(batch_rows)
             for row, label, probability in zip(row_dicts, label_values, probs):
                 labels.append(int(label))
@@ -120,7 +135,14 @@ def run_inference(model: object, dataloader: object, device: object, criterion: 
 def train_one_epoch(model: object, dataloader: object, optimizer: object, criterion: object, device: object) -> float:
     model.train()
     total_loss = 0.0
-    for images, labels, _ in dataloader:
+    total_seen = 0
+    iterator = _progress(
+        dataloader,
+        description=f"Train [{len(dataloader.dataset)} samples]",
+        total=len(dataloader),
+        leave=False,
+    )
+    for batch_index, (images, labels, _) in enumerate(iterator, start=1):
         images = images.to(device)
         labels = labels.to(device)
         optimizer.zero_grad(set_to_none=True)
@@ -129,6 +151,9 @@ def train_one_epoch(model: object, dataloader: object, optimizer: object, criter
         loss.backward()
         optimizer.step()
         total_loss += float(loss.item()) * images.shape[0]
+        total_seen += images.shape[0]
+        running_loss = total_loss / max(1, total_seen)
+        iterator.set_postfix(batch_loss=f"{float(loss.item()):.4f}", running_loss=f"{running_loss:.4f}")
     return total_loss / max(1, len(dataloader.dataset))
 
 
