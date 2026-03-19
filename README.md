@@ -288,3 +288,35 @@ Once the runs are complete, these are the visuals that should be inserted into t
 - `DINOv2` loading uses `torch.hub`, so it may require network access unless cached locally.
 - The Kaggle pneumonia dataset path is now the easiest option if you want a much smaller binary dataset.
 - The smoke config intentionally uses a very small subset so the entire pipeline is testable without a GPU.
+
+## Current CNN results
+
+The repository currently includes one completed baseline run for the CNN experiment:
+
+- experiment name: `cnn_weighted_bce`
+- config: `configs/chestxray14_cnn.json`
+- best validation epoch: `7`
+- loss: `weighted_bce`
+
+Test-set metrics from `artifacts/experiments/cnn_weighted_bce/metrics/test_metrics.json`:
+
+- threshold: `0.4107`
+- accuracy: `0.8253`
+- precision: `0.8980`
+- recall / sensitivity: `0.8128`
+- specificity: `0.8462`
+- F1: `0.8533`
+- ROC-AUC: `0.8955`
+- PR-AUC: `0.9242`
+- confusion matrix: `TP=317`, `TN=198`, `FP=36`, `FN=73`
+
+Generated CNN artifacts:
+
+- plots:
+  `artifacts/experiments/cnn_weighted_bce/plots/test_roc.png`
+  `artifacts/experiments/cnn_weighted_bce/plots/test_pr.png`
+  `artifacts/experiments/cnn_weighted_bce/plots/test_confusion_matrix.png`
+- Grad-CAM examples:
+  `artifacts/experiments/cnn_weighted_bce/interpretability/`
+- full metrics/history:
+  `artifacts/experiments/cnn_weighted_bce/metrics/`
