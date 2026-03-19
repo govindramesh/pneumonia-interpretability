@@ -320,3 +320,25 @@ Generated CNN artifacts:
   `artifacts/experiments/cnn_weighted_bce/interpretability/`
 - full metrics/history:
   `artifacts/experiments/cnn_weighted_bce/metrics/`
+
+### CNN plots
+
+ROC curve:
+
+![CNN ROC](artifacts/experiments/cnn_weighted_bce/plots/test_roc.png)
+
+Precision-recall curve:
+
+![CNN PR](artifacts/experiments/cnn_weighted_bce/plots/test_pr.png)
+
+Confusion matrix:
+
+![CNN Confusion Matrix](artifacts/experiments/cnn_weighted_bce/plots/test_confusion_matrix.png)
+
+### CNN Grad-CAM examples
+
+![CNN Grad-CAM Example 1](artifacts/experiments/cnn_weighted_bce/interpretability/IM-0001-0001.jpeg_gradcam.png)
+
+![CNN Grad-CAM Example 2](artifacts/experiments/cnn_weighted_bce/interpretability/IM-0003-0001.jpeg_gradcam.png)
+
+![CNN Grad-CAM Example 3](artifacts/experiments/cnn_weighted_bce/interpretability/IM-0005-0001.jpeg_gradcam.png)
