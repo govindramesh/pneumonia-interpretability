@@ -246,6 +246,59 @@ def prepare_hf_chestxray14_manifest(
     return summarize_manifest(split_rows)
 
 
+def prepare_kaggle_pneumonia_manifest(
+    dataset_root: str | Path,
+    output_manifest: str | Path,
+    split_dirs: tuple[str, ...] = ("train", "val", "test"),
+    normal_dir_name: str = "NORMAL",
+    pneumonia_dir_name: str = "PNEUMONIA",
+) -> dict[str, dict[str, int]]:
+    root = Path(dataset_root)
+    rows: list[dict[str, str]] = []
+
+    split_aliases = {
+        "train": "train",
+        "val": "val",
+        "valid": "val",
+        "validation": "val",
+        "test": "test",
+    }
+
+    for split_dir in split_dirs:
+        normalized_split = split_aliases.get(split_dir.lower(), split_dir.lower())
+        for class_dir_name, label, finding_labels in (
+            (normal_dir_name, 0, "No Finding"),
+            (pneumonia_dir_name, 1, "Pneumonia"),
+        ):
+            class_dir = root / split_dir / class_dir_name
+            if not class_dir.exists():
+                continue
+            for image_path in sorted(class_dir.rglob("*")):
+                if not image_path.is_file() or image_path.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
+                    continue
+                image_id = image_path.name
+                synthetic_patient_id = f"{normalized_split}_{class_dir_name.lower()}_{image_path.stem}"
+                rows.append(
+                    {
+                        "image_id": image_id,
+                        "patient_id": synthetic_patient_id,
+                        "label": str(label),
+                        "split": normalized_split,
+                        "image_path": str(image_path.resolve()),
+                        "finding_labels": finding_labels,
+                    }
+                )
+
+    if not rows:
+        raise ValueError(
+            "No images were found for the Kaggle pneumonia dataset layout. "
+            "Expected folders like train/NORMAL, train/PNEUMONIA, val/NORMAL, val/PNEUMONIA, test/NORMAL, test/PNEUMONIA."
+        )
+
+    write_manifest(rows, output_manifest)
+    return summarize_manifest(rows)
+
+
 def verify_split_integrity(rows: list[dict[str, str]]) -> None:
     patient_splits: dict[str, set[str]] = {}
     for row in rows:

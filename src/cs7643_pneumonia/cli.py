@@ -8,6 +8,7 @@ from .data import (
     load_manifest,
     prepare_chestxray14_manifest,
     prepare_hf_chestxray14_manifest,
+    prepare_kaggle_pneumonia_manifest,
     verify_negative_labels,
     verify_split_integrity,
 )
@@ -21,6 +22,8 @@ def build_parser() -> argparse.ArgumentParser:
     prepare_parser = subparsers.add_parser("prepare_data", help="Build a filtered patient-level manifest")
     prepare_parser.add_argument("--metadata-csv")
     prepare_parser.add_argument("--image-root")
+    prepare_parser.add_argument("--kaggle-pneumonia-root")
+    prepare_parser.add_argument("--kaggle-split-dirs", default="train,val,test")
     prepare_parser.add_argument("--hf-dataset")
     prepare_parser.add_argument("--hf-output-image-dir")
     prepare_parser.add_argument("--hf-splits", default="train,valid,test")
@@ -47,7 +50,13 @@ def build_parser() -> argparse.ArgumentParser:
 def prepare_data_main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(["prepare_data"] + (argv or []))
-    if args.hf_dataset:
+    if args.kaggle_pneumonia_root:
+        summary = prepare_kaggle_pneumonia_manifest(
+            dataset_root=args.kaggle_pneumonia_root,
+            output_manifest=args.output_manifest,
+            split_dirs=tuple(item.strip() for item in args.kaggle_split_dirs.split(",") if item.strip()),
+        )
+    elif args.hf_dataset:
         if not args.hf_output_image_dir:
             raise SystemExit("--hf-output-image-dir is required when using --hf-dataset.")
         summary = prepare_hf_chestxray14_manifest(
@@ -126,6 +135,10 @@ def main() -> None:
             extra_args += ["--metadata-csv", args.metadata_csv]
         if getattr(args, "image_root", None):
             extra_args += ["--image-root", args.image_root]
+        if getattr(args, "kaggle_pneumonia_root", None):
+            extra_args += ["--kaggle-pneumonia-root", args.kaggle_pneumonia_root]
+        if getattr(args, "kaggle_split_dirs", None):
+            extra_args += ["--kaggle-split-dirs", args.kaggle_split_dirs]
         if getattr(args, "hf_dataset", None):
             extra_args += ["--hf-dataset", args.hf_dataset]
         if getattr(args, "hf_output_image_dir", None):

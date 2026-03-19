@@ -21,8 +21,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-This includes Hugging Face dataset support, so you can save only the filtered `Pneumonia` and
-exact `No Finding` images instead of downloading the full raw NIH image dump.
+This supports three data-entry paths:
+
+- NIH metadata CSV + image root
+- Kaggle `chest-xray-pneumonia` folder layout
+- Hugging Face dataset export
 
 ## Expected data inputs
 
@@ -36,6 +39,21 @@ The script filters:
 - positive class: any example whose labels contain `Pneumonia`
 - negative class: examples labeled exactly `No Finding`
 - all other cases are dropped
+
+For the Kaggle pneumonia dataset, `prepare_data.py` can also read a directory layout like:
+
+```text
+chest_xray/
+  train/
+    NORMAL/
+    PNEUMONIA/
+  val/
+    NORMAL/
+    PNEUMONIA/
+  test/
+    NORMAL/
+    PNEUMONIA/
+```
 
 ## Example workflow
 
@@ -64,6 +82,33 @@ python3 evaluate.py --config configs/chestxray14_smoke.json
 
 ```bash
 python3 interpret.py --config configs/chestxray14_smoke.json
+```
+
+### Recommended small-disk workflow: Kaggle pneumonia dataset
+
+If you are using the smaller Kaggle dataset
+`paultimothymooney/chest-xray-pneumonia`, point `prepare_data.py` at the extracted folder root:
+
+```bash
+python3 prepare_data.py \
+  --kaggle-pneumonia-root /path/to/chest_xray \
+  --output-manifest artifacts/manifests/chestxray14_binary.csv
+```
+
+This will:
+
+- read the provided `train/val/test` folder split
+- map `NORMAL -> No Finding`
+- map `PNEUMONIA -> Pneumonia`
+- create the same manifest format the training pipeline already expects
+
+If your extracted dataset uses `valid/` instead of `val/`, use:
+
+```bash
+python3 prepare_data.py \
+  --kaggle-pneumonia-root /path/to/chest_xray \
+  --kaggle-split-dirs train,valid,test \
+  --output-manifest artifacts/manifests/chestxray14_binary.csv
 ```
 
 ### Hugging Face dataset workflow
@@ -111,8 +156,22 @@ use `device: "auto"`, which will pick CUDA if PyTorch can see it.
 
 ### 1. Established dataset or data-collection pipeline specified
 
-Use this command to build the filtered, patient-level split manifest that defines the dataset
-pipeline for the report:
+Use this command if you adopt the smaller Kaggle pneumonia dataset:
+
+```bash
+python3 prepare_data.py \
+  --kaggle-pneumonia-root /path/to/chest_xray \
+  --output-manifest artifacts/manifests/chestxray14_binary.csv
+```
+
+This gives you the dataset pipeline story for the report:
+
+- source dataset: Kaggle `chest-xray-pneumonia`
+- class mapping: `PNEUMONIA` vs `NORMAL`
+- provided split folders preserved
+- local manifest created for training/evaluation
+
+If instead you stay with the original NIH-style data, use:
 
 ```bash
 python3 prepare_data.py \
@@ -120,13 +179,6 @@ python3 prepare_data.py \
   --image-root /path/to/images \
   --output-manifest artifacts/manifests/chestxray14_binary.csv
 ```
-
-This gives you the dataset pipeline story for the report:
-
-- source dataset: `ChestX-ray14`
-- filtering rule: `Pneumonia` vs exact `No Finding`
-- ambiguous multi-disease negatives dropped
-- patient-level `train/val/test` split
 
 After this runs, the dataset manifest will be at:
 
@@ -198,7 +250,7 @@ This gives you:
 ### Recommended run order for the report
 
 ```bash
-python3 prepare_data.py --metadata-csv /path/to/Data_Entry_2017_v2020.csv --image-root /path/to/images --output-manifest artifacts/manifests/chestxray14_binary.csv
+python3 prepare_data.py --kaggle-pneumonia-root /path/to/chest_xray --output-manifest artifacts/manifests/chestxray14_binary.csv
 python3 train.py --config configs/chestxray14_cnn.json
 python3 evaluate.py --config configs/chestxray14_cnn.json
 python3 train.py --config configs/chestxray14_resnet50.json
@@ -234,4 +286,5 @@ Once the runs are complete, these are the visuals that should be inserted into t
 
 - The defaults are CPU-safe and use `num_workers=0`, but `device: "auto"` will use GPU when available.
 - `DINOv2` loading uses `torch.hub`, so it may require network access unless cached locally.
+- The Kaggle pneumonia dataset path is now the easiest option if you want a much smaller binary dataset.
 - The smoke config intentionally uses a very small subset so the entire pipeline is testable without a GPU.
