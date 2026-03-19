@@ -1,7 +1,7 @@
 # CS7643 Pneumonia Midterm Pipeline
 
 This repository contains a reproducible implementation scaffold for the CS7643 milestone project:
-binary pneumonia detection on this dataset: `[chest xrays](https://www.kaggle.com/datasets/paultimothymooney/chest-xray-pneumonia/data)` with baselines, evaluation, and interpretability.
+binary pneumonia detection on this dataset: [chest xrays](https://www.kaggle.com/datasets/paultimothymooney/chest-xray-pneumonia/data) with baselines, evaluation, and interpretability.
 
 ## What is included
 
