@@ -37,6 +37,17 @@ def _require_image_stack() -> tuple[object, object]:
     return Image, transforms
 
 
+def _require_hf_datasets() -> object:
+    try:
+        from datasets import load_dataset
+    except ImportError as exc:
+        raise RuntimeError(
+            "Hugging Face dataset support requires `datasets` and `huggingface_hub`. "
+            "Install dependencies from requirements.txt."
+        ) from exc
+    return load_dataset
+
+
 def load_manifest(manifest_path: str | Path) -> list[dict[str, str]]:
     with Path(manifest_path).open("r", encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
@@ -79,6 +90,18 @@ def filter_chestxray14_row(row: dict[str, str]) -> tuple[int | None, str]:
     if labels == ["No Finding"]:
         return 0, labels_raw
     return None, labels_raw
+
+
+def filter_hf_labels(labels_raw: object) -> tuple[int | None, str]:
+    if isinstance(labels_raw, str):
+        labels = [item.strip() for item in labels_raw.split("|") if item.strip()]
+    else:
+        labels = [str(item).strip() for item in labels_raw or [] if str(item).strip()]
+    if "Pneumonia" in labels:
+        return 1, "|".join(labels)
+    if labels == ["No Finding"]:
+        return 0, "No Finding"
+    return None, "|".join(labels)
 
 
 def _patient_label_groups(rows: list[dict[str, str]]) -> tuple[list[str], list[str]]:
@@ -156,6 +179,67 @@ def prepare_chestxray14_manifest(metadata_csv: str | Path, image_root: str | Pat
                     "finding_labels": finding_labels,
                 }
             )
+
+    split_rows = build_patient_level_splits(filtered_rows, seed=seed, ratios=ratios)
+    write_manifest(split_rows, output_manifest)
+    return summarize_manifest(split_rows)
+
+
+def prepare_hf_chestxray14_manifest(
+    hf_dataset: str,
+    output_manifest: str | Path,
+    output_image_dir: str | Path,
+    seed: int = 42,
+    ratios: tuple[float, float, float] = (0.8, 0.1, 0.1),
+    hf_splits: tuple[str, ...] = ("train", "valid", "test"),
+    streaming: bool = True,
+    limit_per_class: int | None = None,
+) -> dict[str, dict[str, int]]:
+    load_dataset = _require_hf_datasets()
+    Image, _ = _require_image_stack()
+
+    output_image_dir = Path(output_image_dir)
+    output_image_dir.mkdir(parents=True, exist_ok=True)
+
+    filtered_rows: list[dict[str, str]] = []
+    saved_counts = {0: 0, 1: 0}
+
+    for split_name in hf_splits:
+        dataset = load_dataset(hf_dataset, split=split_name, streaming=streaming)
+        for index, sample in enumerate(dataset):
+            label, finding_labels = filter_hf_labels(sample.get("label"))
+            if label is None:
+                continue
+            if limit_per_class is not None and saved_counts[label] >= limit_per_class:
+                continue
+
+            patient_id = str(sample.get("Patient ID"))
+            image = sample.get("image")
+            if image is None:
+                continue
+
+            image_id = f"hf_{split_name}_{index:06d}_patient_{patient_id}.png"
+            image_path = output_image_dir / image_id
+
+            if not image_path.exists():
+                if isinstance(image, Image.Image):
+                    pil_image = image
+                else:
+                    # `datasets` image feature usually decodes to PIL already, but keep a fallback.
+                    pil_image = Image.fromarray(np.asarray(image))
+                pil_image.convert("L").save(image_path)
+
+            filtered_rows.append(
+                {
+                    "image_id": image_id,
+                    "patient_id": patient_id,
+                    "label": str(label),
+                    "split": "",
+                    "image_path": str(image_path.resolve()),
+                    "finding_labels": finding_labels,
+                }
+            )
+            saved_counts[label] += 1
 
     split_rows = build_patient_level_splits(filtered_rows, seed=seed, ratios=ratios)
     write_manifest(split_rows, output_manifest)

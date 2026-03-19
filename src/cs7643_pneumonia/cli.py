@@ -4,7 +4,13 @@ import argparse
 from pathlib import Path
 
 from .config import ExperimentConfig
-from .data import load_manifest, prepare_chestxray14_manifest, verify_negative_labels, verify_split_integrity
+from .data import (
+    load_manifest,
+    prepare_chestxray14_manifest,
+    prepare_hf_chestxray14_manifest,
+    verify_negative_labels,
+    verify_split_integrity,
+)
 from .runner import compare_interpretability, evaluate_experiment, interpret_experiment, train_experiment
 
 
@@ -13,8 +19,13 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     prepare_parser = subparsers.add_parser("prepare_data", help="Build a filtered patient-level manifest")
-    prepare_parser.add_argument("--metadata-csv", required=True)
-    prepare_parser.add_argument("--image-root", required=True)
+    prepare_parser.add_argument("--metadata-csv")
+    prepare_parser.add_argument("--image-root")
+    prepare_parser.add_argument("--hf-dataset")
+    prepare_parser.add_argument("--hf-output-image-dir")
+    prepare_parser.add_argument("--hf-splits", default="train,valid,test")
+    prepare_parser.add_argument("--no-streaming", action="store_true")
+    prepare_parser.add_argument("--limit-per-class", type=int, default=None)
     prepare_parser.add_argument("--output-manifest", required=True)
     prepare_parser.add_argument("--seed", type=int, default=42)
 
@@ -36,12 +47,27 @@ def build_parser() -> argparse.ArgumentParser:
 def prepare_data_main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(["prepare_data"] + (argv or []))
-    summary = prepare_chestxray14_manifest(
-        metadata_csv=args.metadata_csv,
-        image_root=args.image_root,
-        output_manifest=args.output_manifest,
-        seed=args.seed,
-    )
+    if args.hf_dataset:
+        if not args.hf_output_image_dir:
+            raise SystemExit("--hf-output-image-dir is required when using --hf-dataset.")
+        summary = prepare_hf_chestxray14_manifest(
+            hf_dataset=args.hf_dataset,
+            output_manifest=args.output_manifest,
+            output_image_dir=args.hf_output_image_dir,
+            seed=args.seed,
+            hf_splits=tuple(item.strip() for item in args.hf_splits.split(",") if item.strip()),
+            streaming=not args.no_streaming,
+            limit_per_class=args.limit_per_class,
+        )
+    else:
+        if not args.metadata_csv or not args.image_root:
+            raise SystemExit("--metadata-csv and --image-root are required unless --hf-dataset is used.")
+        summary = prepare_chestxray14_manifest(
+            metadata_csv=args.metadata_csv,
+            image_root=args.image_root,
+            output_manifest=args.output_manifest,
+            seed=args.seed,
+        )
     rows = load_manifest(args.output_manifest)
     verify_split_integrity(rows)
     verify_negative_labels(rows)
@@ -90,18 +116,27 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
     if args.command == "prepare_data":
-        prepare_data_main(
-            [
-                "--metadata-csv",
-                args.metadata_csv,
-                "--image-root",
-                args.image_root,
-                "--output-manifest",
-                args.output_manifest,
-                "--seed",
-                str(args.seed),
-            ]
-        )
+        extra_args = [
+            "--output-manifest",
+            args.output_manifest,
+            "--seed",
+            str(args.seed),
+        ]
+        if getattr(args, "metadata_csv", None):
+            extra_args += ["--metadata-csv", args.metadata_csv]
+        if getattr(args, "image_root", None):
+            extra_args += ["--image-root", args.image_root]
+        if getattr(args, "hf_dataset", None):
+            extra_args += ["--hf-dataset", args.hf_dataset]
+        if getattr(args, "hf_output_image_dir", None):
+            extra_args += ["--hf-output-image-dir", args.hf_output_image_dir]
+        if getattr(args, "hf_splits", None):
+            extra_args += ["--hf-splits", args.hf_splits]
+        if getattr(args, "no_streaming", False):
+            extra_args += ["--no-streaming"]
+        if getattr(args, "limit_per_class", None) is not None:
+            extra_args += ["--limit-per-class", str(args.limit_per_class)]
+        prepare_data_main(extra_args)
     elif args.command == "train":
         train_main(["--config", args.config] + (["--checkpoint", args.checkpoint] if args.checkpoint else []))
     elif args.command == "evaluate":

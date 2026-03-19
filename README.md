@@ -21,6 +21,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+This includes Hugging Face dataset support, so you can save only the filtered `Pneumonia` and
+exact `No Finding` images instead of downloading the full raw NIH image dump.
+
 ## Expected data inputs
 
 `prepare_data.py` expects:
@@ -61,6 +64,43 @@ python3 evaluate.py --config configs/chestxray14_smoke.json
 
 ```bash
 python3 interpret.py --config configs/chestxray14_smoke.json
+```
+
+### Hugging Face dataset workflow
+
+If disk space is limited, use the Hugging Face dataset and save only the filtered images needed
+by this project:
+
+```bash
+python3 prepare_data.py \
+  --hf-dataset BahaaEldin0/NIH-Chest-Xray-14 \
+  --hf-output-image-dir artifacts/hf_filtered_images \
+  --output-manifest artifacts/manifests/chestxray14_binary.csv
+```
+
+This will:
+
+- stream the Hugging Face dataset by split
+- keep only rows containing `Pneumonia` or exact `No Finding`
+- save only those filtered images locally
+- rebuild a patient-level `train/val/test` split for the project
+
+Optional flags:
+
+```bash
+--hf-splits train,valid,test
+--no-streaming
+--limit-per-class 5000
+```
+
+Example with an explicit cap while testing:
+
+```bash
+python3 prepare_data.py \
+  --hf-dataset BahaaEldin0/NIH-Chest-Xray-14 \
+  --hf-output-image-dir artifacts/hf_filtered_images \
+  --output-manifest artifacts/manifests/chestxray14_binary.csv \
+  --limit-per-class 2000
 ```
 
 ## Midterm report checklist
