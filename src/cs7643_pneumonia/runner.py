@@ -70,6 +70,10 @@ def _prepare_output_dirs(config: ExperimentConfig) -> dict[str, Path]:
     return paths
 
 
+def _log(message: str) -> None:
+    print(message, flush=True)
+
+
 def _extract_batch_rows(batch_rows: dict[str, list]) -> list[dict[str, str]]:
     keys = list(batch_rows.keys())
     size = len(batch_rows[keys[0]]) if keys else 0
@@ -176,6 +180,18 @@ def train_experiment(config: ExperimentConfig) -> dict:
     criterion = _move_loss_to_device(build_loss(config.training.loss_name, pos_weight=pos_weight), device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config.training.learning_rate, weight_decay=config.training.weight_decay)
 
+    _log(
+        f"Starting training for {config.experiment_name} | "
+        f"model={config.model.name} | device={device} | "
+        f"epochs={config.training.epochs} | batch_size={config.dataset.batch_size} | "
+        f"lr={config.training.learning_rate} | loss={config.training.loss_name}"
+    )
+    _log(
+        f"Dataset sizes | train={len(train_loader.dataset)} | "
+        f"val={len(val_loader.dataset)} | test={len(test_loader.dataset)} | "
+        f"pos_weight={pos_weight:.4f}"
+    )
+
     history: list[dict[str, float | int]] = []
     best_val_auc = -1.0
     best_epoch = 0
@@ -183,6 +199,7 @@ def train_experiment(config: ExperimentConfig) -> dict:
     best_checkpoint = output_dirs["checkpoints"] / "best.pt"
 
     for epoch in range(1, config.training.epochs + 1):
+        _log(f"[Epoch {epoch}/{config.training.epochs}] running...")
         train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
         val_loss, _, val_labels, val_probs = run_inference(model, val_loader, device, criterion=criterion)
         val_metrics = compute_binary_metrics(val_labels, val_probs, threshold=None, threshold_metric=config.evaluation.threshold_metric)
@@ -197,18 +214,44 @@ def train_experiment(config: ExperimentConfig) -> dict:
             }
         )
 
+        _log(
+            f"[Epoch {epoch}/{config.training.epochs}] "
+            f"train_loss={train_loss:.4f} | "
+            f"val_loss={val_loss:.4f} | "
+            f"val_roc_auc={float(val_metrics['roc_auc']):.4f} | "
+            f"val_pr_auc={float(val_metrics['pr_auc']):.4f} | "
+            f"val_f1={float(val_metrics['f1']):.4f}"
+        )
+
         if float(val_metrics["roc_auc"]) > best_val_auc:
             best_val_auc = float(val_metrics["roc_auc"])
             best_epoch = epoch
             patience = 0
             save_checkpoint(model, config.to_dict(), epoch, val_metrics, best_checkpoint)
+            _log(
+                f"[Epoch {epoch}/{config.training.epochs}] "
+                f"new best checkpoint saved to {best_checkpoint} "
+                f"(val_roc_auc={best_val_auc:.4f})"
+            )
         else:
             patience += 1
+            _log(
+                f"[Epoch {epoch}/{config.training.epochs}] "
+                f"no improvement | early_stop_patience={patience}/{config.training.early_stopping_patience}"
+            )
 
         if config.training.save_every_epoch:
             save_checkpoint(model, config.to_dict(), epoch, val_metrics, output_dirs["checkpoints"] / f"epoch_{epoch:02d}.pt")
+            _log(
+                f"[Epoch {epoch}/{config.training.epochs}] "
+                f"saved epoch checkpoint to {output_dirs['checkpoints'] / f'epoch_{epoch:02d}.pt'}"
+            )
 
         if patience >= config.training.early_stopping_patience:
+            _log(
+                f"Early stopping triggered at epoch {epoch}. "
+                f"Best epoch was {best_epoch} with val_roc_auc={best_val_auc:.4f}."
+            )
             break
 
     with (output_dirs["metrics"] / "history.json").open("w", encoding="utf-8") as handle:
@@ -238,6 +281,13 @@ def train_experiment(config: ExperimentConfig) -> dict:
         plot_confusion_matrix(test_metrics["confusion_matrix"], output_dirs["plots"] / "test_confusion_matrix.png")
 
     save_json(test_metrics, output_dirs["metrics"] / "test_metrics.json")
+    _log(
+        f"Finished training for {config.experiment_name} | "
+        f"best_epoch={best_epoch} | "
+        f"test_roc_auc={float(test_metrics['roc_auc']):.4f} | "
+        f"test_pr_auc={float(test_metrics['pr_auc']):.4f} | "
+        f"test_f1={float(test_metrics['f1']):.4f}"
+    )
     return test_metrics
 
 
