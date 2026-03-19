@@ -1,7 +1,7 @@
 # CS7643 Pneumonia Midterm Pipeline
 
 This repository contains a reproducible implementation scaffold for the CS7643 milestone project:
-binary pneumonia detection on `ChestX-ray14` with baselines, evaluation, and interpretability.
+binary pneumonia detection on this dataset: `[chest xrays](https://www.kaggle.com/datasets/paultimothymooney/chest-xray-pneumonia/data)` with baselines, evaluation, and interpretability.
 
 ## What is included
 
@@ -21,26 +21,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-This supports three data-entry paths:
-
-- NIH metadata CSV + image root
-- Kaggle `chest-xray-pneumonia` folder layout
-- Hugging Face dataset export
-
 ## Expected data inputs
 
-`prepare_data.py` expects:
-
-- the ChestX-ray14 metadata CSV, such as `Data_Entry_2017_v2020.csv`
-- an image root containing the image files referenced by `Image Index`
-
-The script filters:
-
-- positive class: any example whose labels contain `Pneumonia`
-- negative class: examples labeled exactly `No Finding`
-- all other cases are dropped
-
-For the Kaggle pneumonia dataset, `prepare_data.py` can also read a directory layout like:
+For the Kaggle pneumonia dataset, `prepare_data.py` reads a directory layout like:
 
 ```text
 chest_xray/
@@ -59,33 +42,6 @@ chest_xray/
 
 1. Build the manifest:
 
-```bash
-python3 prepare_data.py \
-  --metadata-csv /path/to/Data_Entry_2017_v2020.csv \
-  --image-root /path/to/images \
-  --output-manifest artifacts/manifests/chestxray14_binary.csv
-```
-
-2. Run a smoke experiment on CPU:
-
-```bash
-python3 train.py --config configs/chestxray14_smoke.json
-```
-
-3. Evaluate the saved checkpoint:
-
-```bash
-python3 evaluate.py --config configs/chestxray14_smoke.json
-```
-
-4. Produce explanations:
-
-```bash
-python3 interpret.py --config configs/chestxray14_smoke.json
-```
-
-### Recommended small-disk workflow: Kaggle pneumonia dataset
-
 If you are using the smaller Kaggle dataset
 `paultimothymooney/chest-xray-pneumonia`, point `prepare_data.py` at the extracted folder root:
 
@@ -102,51 +58,6 @@ This will:
 - map `PNEUMONIA -> Pneumonia`
 - create the same manifest format the training pipeline already expects
 
-If your extracted dataset uses `valid/` instead of `val/`, use:
-
-```bash
-python3 prepare_data.py \
-  --kaggle-pneumonia-root /path/to/chest_xray \
-  --kaggle-split-dirs train,valid,test \
-  --output-manifest artifacts/manifests/chestxray14_binary.csv
-```
-
-### Hugging Face dataset workflow
-
-If disk space is limited, use the Hugging Face dataset and save only the filtered images needed
-by this project:
-
-```bash
-python3 prepare_data.py \
-  --hf-dataset BahaaEldin0/NIH-Chest-Xray-14 \
-  --hf-output-image-dir artifacts/hf_filtered_images \
-  --output-manifest artifacts/manifests/chestxray14_binary.csv
-```
-
-This will:
-
-- stream the Hugging Face dataset by split
-- keep only rows containing `Pneumonia` or exact `No Finding`
-- save only those filtered images locally
-- rebuild a patient-level `train/val/test` split for the project
-
-Optional flags:
-
-```bash
---hf-splits train,valid,test
---no-streaming
---limit-per-class 5000
-```
-
-Example with an explicit cap while testing:
-
-```bash
-python3 prepare_data.py \
-  --hf-dataset BahaaEldin0/NIH-Chest-Xray-14 \
-  --hf-output-image-dir artifacts/hf_filtered_images \
-  --output-manifest artifacts/manifests/chestxray14_binary.csv \
-  --limit-per-class 2000
-```
 
 ## Midterm report checklist
 
@@ -156,7 +67,7 @@ use `device: "auto"`, which will pick CUDA if PyTorch can see it.
 
 ### 1. Established dataset or data-collection pipeline specified
 
-Use this command if you adopt the smaller Kaggle pneumonia dataset:
+Use this command for the Kaggle pneumonia dataset:
 
 ```bash
 python3 prepare_data.py \
@@ -170,15 +81,6 @@ This gives you the dataset pipeline story for the report:
 - class mapping: `PNEUMONIA` vs `NORMAL`
 - provided split folders preserved
 - local manifest created for training/evaluation
-
-If instead you stay with the original NIH-style data, use:
-
-```bash
-python3 prepare_data.py \
-  --metadata-csv /path/to/Data_Entry_2017_v2020.csv \
-  --image-root /path/to/images \
-  --output-manifest artifacts/manifests/chestxray14_binary.csv
-```
 
 After this runs, the dataset manifest will be at:
 
@@ -247,20 +149,6 @@ This gives you:
 - faithfulness reports
 - side-by-side DINO vs ResNet explanation figures
 
-### Recommended run order for the report
-
-```bash
-python3 prepare_data.py --kaggle-pneumonia-root /path/to/chest_xray --output-manifest artifacts/manifests/chestxray14_binary.csv
-python3 train.py --config configs/chestxray14_cnn.json
-python3 evaluate.py --config configs/chestxray14_cnn.json
-python3 train.py --config configs/chestxray14_resnet50.json
-python3 evaluate.py --config configs/chestxray14_resnet50.json
-python3 train.py --config configs/chestxray14_dinov2_linear.json
-python3 evaluate.py --config configs/chestxray14_dinov2_linear.json
-python3 interpret.py --config configs/chestxray14_resnet50.json
-python3 interpret.py --config configs/chestxray14_dinov2_linear.json --comparison-config configs/chestxray14_resnet50.json
-```
-
 ## Visuals to include at the bottom of the midterm report
 
 Once the runs are complete, these are the visuals that should be inserted into the report:
@@ -281,13 +169,6 @@ Once the runs are complete, these are the visuals that should be inserted into t
   deletion/confidence-drop curves from the `interpretability/` directory
 - Metrics table:
   CNN vs ResNet-50 vs DINOv2 using the values from each `test_metrics.json`
-
-## Notes
-
-- The defaults are CPU-safe and use `num_workers=0`, but `device: "auto"` will use GPU when available.
-- `DINOv2` loading uses `torch.hub`, so it may require network access unless cached locally.
-- The Kaggle pneumonia dataset path is now the easiest option if you want a much smaller binary dataset.
-- The smoke config intentionally uses a very small subset so the entire pipeline is testable without a GPU.
 
 ## Current CNN results
 
