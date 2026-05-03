@@ -2,7 +2,17 @@ __pycache__/
 *.pyc
 .DS_Store
 .venv/
+
+# Keep experiment outputs that are useful for the report.
+# Ignore only bulky or sensitive artifacts.
 artifacts/experiments/*/checkpoints/*
 artifacts/experiments/*/predictions/*
-artifacts/manifests
+artifacts/experiments/*/interpretability/*_insertion.png
+artifacts/experiments/*/interpretability/*_deletion.png
+artifacts/experiments/*/interpretability/IM*
+
+images/
+
+
+# Model weights
 *.pt
