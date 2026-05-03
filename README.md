@@ -353,6 +353,38 @@ Key takeaways:
 - Weighted BCE clearly helps ResNet recall on this dataset.
 - The DINOv2 linear probe is competitive but does not beat ResNet-50 in the current setup.
 
+## Interpretability results
+
+The repo currently includes quantitative interpretability outputs for:
+
+- `cnn_weighted_bce` with `Grad-CAM`
+- `resnet50_bce` with `Grad-CAM`
+- `dinov2_linear_bce` with DINO patch-similarity maps and DINO attention rollout
+- `dinov2_linear_weighted_bce` with DINO patch-similarity maps and DINO attention rollout
+
+These numbers come from the corresponding `interpretability/faithfulness_report.csv` files and are averaged over the saved `8` test examples per run.
+
+| Experiment | Method | Mean confidence drop | Mean deletion AUC | Mean insertion AUC |
+| --- | --- | ---: | ---: | ---: |
+| `cnn_weighted_bce` | `gradcam` | `0.1217` | `0.1491` | `0.5124` |
+| `resnet50_bce` | `gradcam` | `-0.0361` | `0.3735` | `0.4419` |
+| `dinov2_linear_bce` | `dino` | `-0.0976` | `0.3705` | `0.1485` |
+| `dinov2_linear_bce` | `dino_rollout` | `-0.4120` | `0.6550` | `0.7184` |
+| `dinov2_linear_weighted_bce` | `dino` | `-0.0694` | `0.3021` | `0.0974` |
+| `dinov2_linear_weighted_bce` | `dino_rollout` | `-0.3494` | `0.5707` | `0.6431` |
+
+How to read these:
+
+- Higher positive `confidence_drop` is better under this masking test because confidence should fall when the most important region is removed.
+- `deletion_auc` and `insertion_auc` are useful comparative summaries, but they should be interpreted together with the sign of `confidence_drop` rather than in isolation.
+
+What the current numbers suggest:
+
+- The committed CNN Grad-CAM run has the strongest positive mean confidence-drop signal among the saved faithfulness reports.
+- The committed ResNet BCE Grad-CAM run is visually useful, but its average confidence drop is slightly negative on the saved sample set.
+- The DINO patch-similarity maps and rollout maps produce informative qualitative figures, but the current quantitative faithfulness results are mixed and do not support a strong claim that they are already more faithful than Grad-CAM.
+- Attention rollout is consistently different from the patch-similarity map and is worth discussing qualitatively, but the current rollout confidence-drop values are strongly negative, so the write-up should avoid overclaiming.
+
 ## Example artifacts
 
 ### CNN baseline plots
@@ -385,6 +417,13 @@ These side-by-side figures come from [artifacts/experiments/dinov2_linear_weight
 ![Comparison Example 1](artifacts/experiments/dinov2_linear_weighted_bce/interpretability/comparisons/IM-0001-0001.jpeg_comparison.png)
 
 ![Comparison Example 2](artifacts/experiments/dinov2_linear_weighted_bce/interpretability/comparisons/IM-0003-0001.jpeg_comparison.png)
+
+### Interpretability artifact references
+
+- CNN Grad-CAM report: [artifacts/experiments/cnn_weighted_bce/interpretability/faithfulness_report.csv](/Users/govindramesh/GeorgiaTech/CS%207643/Project/artifacts/experiments/cnn_weighted_bce/interpretability/faithfulness_report.csv)
+- ResNet Grad-CAM report: [artifacts/experiments/resnet50_bce/interpretability/faithfulness_report.csv](/Users/govindramesh/GeorgiaTech/CS%207643/Project/artifacts/experiments/resnet50_bce/interpretability/faithfulness_report.csv)
+- DINO BCE report: [artifacts/experiments/dinov2_linear_bce/interpretability/faithfulness_report.csv](/Users/govindramesh/GeorgiaTech/CS%207643/Project/artifacts/experiments/dinov2_linear_bce/interpretability/faithfulness_report.csv)
+- DINO weighted-BCE report: [artifacts/experiments/dinov2_linear_weighted_bce/interpretability/faithfulness_report.csv](/Users/govindramesh/GeorgiaTech/CS%207643/Project/artifacts/experiments/dinov2_linear_weighted_bce/interpretability/faithfulness_report.csv)
 
 ## Report-writing notes
 
