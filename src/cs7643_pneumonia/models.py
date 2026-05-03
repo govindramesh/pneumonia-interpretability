@@ -111,6 +111,56 @@ class DINOv2LinearProbe:
                 side = int(num_patches ** 0.5)
                 return similarity.view(-1, side, side)
 
+            def extract_attention_rollout_map(self, x: object) -> object:
+                if not hasattr(self.backbone, "blocks"):
+                    raise RuntimeError("This DINOv2 backbone does not expose transformer blocks for attention rollout.")
+
+                captured_attentions: list[object] = []
+                hooks = []
+
+                def _capture_attention(module: object, inputs: tuple, output: object) -> None:
+                    tokens = inputs[0]
+                    if not hasattr(module, "qkv") or not hasattr(module, "num_heads"):
+                        raise RuntimeError("Attention module does not expose qkv/num_heads required for rollout.")
+                    batch_size, num_tokens, channels = tokens.shape
+                    head_dim = channels // module.num_heads
+                    qkv = (
+                        module.qkv(tokens)
+                        .reshape(batch_size, num_tokens, 3, module.num_heads, head_dim)
+                        .permute(2, 0, 3, 1, 4)
+                    )
+                    queries, keys = qkv[0], qkv[1]
+                    attention = (queries @ keys.transpose(-2, -1)) * getattr(module, "scale", head_dim ** -0.5)
+                    attention = attention.softmax(dim=-1)
+                    captured_attentions.append(attention.detach())
+
+                for block in self.backbone.blocks:
+                    hooks.append(block.attn.register_forward_hook(_capture_attention))
+
+                try:
+                    _ = self.backbone.forward_features(x)
+                finally:
+                    for hook in hooks:
+                        hook.remove()
+
+                if not captured_attentions:
+                    raise RuntimeError("No attention maps were captured for DINO attention rollout.")
+
+                device = captured_attentions[0].device
+                batch_size = captured_attentions[0].shape[0]
+                num_tokens = captured_attentions[0].shape[-1]
+                rollout = torch.eye(num_tokens, device=device).unsqueeze(0).repeat(batch_size, 1, 1)
+
+                for attention in captured_attentions:
+                    fused = attention.mean(dim=1)
+                    fused = fused + torch.eye(num_tokens, device=device).unsqueeze(0)
+                    fused = fused / fused.sum(dim=-1, keepdim=True)
+                    rollout = fused @ rollout
+
+                cls_to_patches = rollout[:, 0, 1:]
+                side = int(cls_to_patches.shape[-1] ** 0.5)
+                return cls_to_patches.view(batch_size, side, side)
+
         return _DINOv2LinearProbe()
 
 

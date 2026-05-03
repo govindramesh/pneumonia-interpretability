@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .artifacts import plot_faithfulness_curve, save_overlay_grid
+from .artifacts import plot_dual_faithfulness_curves, plot_faithfulness_curve, save_overlay_grid
 
 
 def _require_torch() -> object:
@@ -99,6 +99,34 @@ def deletion_curve(model: object, image_tensor: object, saliency_map: np.ndarray
     return fractions, scores
 
 
+def insert_salient_region(image_tensor: object, saliency_map: np.ndarray, fraction: float) -> object:
+    torch = _require_torch()
+    inserted = torch.zeros_like(image_tensor)
+    _, _, height, width = inserted.shape
+    saliency = upsample_map(saliency_map, height, width)
+    flat = saliency.reshape(-1)
+    num_keep = max(1, int(flat.size * fraction))
+    top_indices = np.argpartition(flat, -num_keep)[-num_keep:]
+    mask = np.zeros_like(flat, dtype=np.float32)
+    mask[top_indices] = 1.0
+    mask = torch.tensor(mask.reshape(height, width), dtype=inserted.dtype, device=inserted.device).unsqueeze(0)
+    inserted = image_tensor * mask.unsqueeze(0)
+    return inserted
+
+
+def insertion_curve(model: object, image_tensor: object, saliency_map: np.ndarray, steps: int) -> tuple[list[float], list[float]]:
+    torch = _require_torch()
+    fractions = np.linspace(0.0, 1.0, steps).tolist()
+    scores: list[float] = []
+    model.eval()
+    with torch.no_grad():
+        for fraction in fractions:
+            inserted = torch.zeros_like(image_tensor) if fraction == 0 else insert_salient_region(image_tensor, saliency_map, fraction)
+            probability = torch.sigmoid(model(inserted)).reshape(-1)[0].item()
+            scores.append(float(probability))
+    return fractions, scores
+
+
 def confidence_drop(model: object, image_tensor: object, saliency_map: np.ndarray, fraction: float) -> tuple[float, float, float]:
     torch = _require_torch()
     model.eval()
@@ -117,6 +145,9 @@ def explain_single_image(model: object, image_tensor: object, method_name: str, 
     if method_name == "dino":
         patch_map = model.extract_patch_similarity_map(image_tensor)
         return patch_map.squeeze(0).detach().cpu().numpy()
+    if method_name == "dino_rollout":
+        rollout_map = model.extract_attention_rollout_map(image_tensor)
+        return rollout_map.squeeze(0).detach().cpu().numpy()
     raise ValueError(f"Unsupported interpretation method: {method_name}")
 
 
@@ -136,13 +167,30 @@ def save_explanation_bundle(model: object, image_tensor: object, row: dict[str, 
     )
 
     original, masked, drop = confidence_drop(model, image_tensor, saliency_map, fraction=mask_fraction)
-    fractions, scores = deletion_curve(model, image_tensor, saliency_map, steps=curve_steps)
+    fractions, deletion_scores = deletion_curve(model, image_tensor, saliency_map, steps=curve_steps)
+    _, insertion_scores = insertion_curve(model, image_tensor, saliency_map, steps=curve_steps)
     plot_faithfulness_curve(
         fractions=fractions,
-        scores=scores,
+        scores=deletion_scores,
         output_path=output_dir / f"{image_id}_{method_name}_deletion.png",
         title=f"Deletion Curve - {image_id}",
     )
+    plot_faithfulness_curve(
+        fractions=fractions,
+        scores=insertion_scores,
+        output_path=output_dir / f"{image_id}_{method_name}_insertion.png",
+        title=f"Insertion Curve - {image_id}",
+    )
+    plot_dual_faithfulness_curves(
+        fractions=fractions,
+        deletion_scores=deletion_scores,
+        insertion_scores=insertion_scores,
+        output_path=output_dir / f"{image_id}_{method_name}_faithfulness.png",
+        title=f"Faithfulness Curves - {image_id}",
+    )
+
+    deletion_auc = float(np.trapezoid(deletion_scores, fractions)) if hasattr(np, "trapezoid") else float(np.trapz(deletion_scores, fractions))
+    insertion_auc = float(np.trapezoid(insertion_scores, fractions)) if hasattr(np, "trapezoid") else float(np.trapz(insertion_scores, fractions))
 
     return {
         "image_id": image_id,
@@ -152,5 +200,7 @@ def save_explanation_bundle(model: object, image_tensor: object, row: dict[str, 
         "original_probability": original,
         "masked_probability": masked,
         "confidence_drop": drop,
+        "deletion_auc": deletion_auc,
+        "insertion_auc": insertion_auc,
         "overlay_path": str((output_dir / f"{image_id}_{method_name}.png").resolve()),
     }

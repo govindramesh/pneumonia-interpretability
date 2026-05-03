@@ -6,7 +6,10 @@ from pathlib import Path
 import random
 
 import numpy as np
-from tqdm.auto import tqdm
+try:
+    from tqdm.auto import tqdm
+except ImportError:
+    tqdm = None
 
 from .artifacts import plot_class_balance, plot_confusion_matrix, plot_roc_pr, save_side_by_side_explanations, save_top_examples
 from .config import ExperimentConfig
@@ -76,6 +79,8 @@ def _log(message: str) -> None:
 
 
 def _progress(iterable: object, description: str, total: int | None = None, leave: bool = False) -> object:
+    if tqdm is None:
+        return iterable
     return tqdm(iterable, desc=description, total=total, leave=leave, dynamic_ncols=True)
 
 
@@ -86,6 +91,17 @@ def _extract_batch_rows(batch_rows: dict[str, list]) -> list[dict[str, str]]:
     for idx in range(size):
         rows.append({key: str(batch_rows[key][idx]) for key in keys})
     return rows
+
+
+def _save_experiment_summary(rows: list[dict[str, object]], output_path: str | Path) -> None:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not rows:
+        return
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def run_inference(model: object, dataloader: object, device: object, criterion: object | None = None) -> tuple[float, list[dict[str, str | float]], list[int], list[float]]:
@@ -112,7 +128,7 @@ def run_inference(model: object, dataloader: object, device: object, criterion: 
                 total_loss += batch_loss_value * images.shape[0]
             probs = torch.sigmoid(logits).detach().cpu().numpy().tolist()
             label_values = batch_labels.detach().cpu().numpy().astype(int).tolist()
-            if batch_loss_value is not None:
+            if batch_loss_value is not None and hasattr(iterator, "set_postfix"):
                 iterator.set_postfix(loss=f"{batch_loss_value:.4f}")
             row_dicts = _extract_batch_rows(batch_rows)
             for row, label, probability in zip(row_dicts, label_values, probs):
@@ -153,7 +169,8 @@ def train_one_epoch(model: object, dataloader: object, optimizer: object, criter
         total_loss += float(loss.item()) * images.shape[0]
         total_seen += images.shape[0]
         running_loss = total_loss / max(1, total_seen)
-        iterator.set_postfix(batch_loss=f"{float(loss.item()):.4f}", running_loss=f"{running_loss:.4f}")
+        if hasattr(iterator, "set_postfix"):
+            iterator.set_postfix(batch_loss=f"{float(loss.item()):.4f}", running_loss=f"{running_loss:.4f}")
     return total_loss / max(1, len(dataloader.dataset))
 
 
@@ -376,9 +393,11 @@ def interpret_experiment(config: ExperimentConfig, checkpoint_path: str | Path |
         shuffle=False,
     )
 
-    method = "dino" if config.model.name.lower() == "dinov2_linear" else "gradcam"
+    methods = ["gradcam"]
+    if config.model.name.lower() == "dinov2_linear":
+        methods = ["dino", "dino_rollout"]
     gradcam = None
-    if method == "gradcam":
+    if "gradcam" in methods:
         target_name = config.model.gradcam_target_layer or ("layer4" if config.model.name.lower() == "resnet50" else "features.6")
         gradcam = GradCAM(model, resolve_module(model, target_name))
 
@@ -386,17 +405,18 @@ def interpret_experiment(config: ExperimentConfig, checkpoint_path: str | Path |
     for images, _, batch_rows in loader:
         image = images.to(device)
         row = _extract_batch_rows(batch_rows)[0]
-        report = save_explanation_bundle(
-            model=model,
-            image_tensor=image,
-            row=row,
-            output_dir=output_dirs["interpretability"],
-            method_name=method,
-            gradcam=gradcam,
-            curve_steps=config.interpretation.curve_steps,
-            mask_fraction=config.interpretation.mask_fraction,
-        )
-        reports.append(report)
+        for method_name in methods:
+            report = save_explanation_bundle(
+                model=model,
+                image_tensor=image,
+                row=row,
+                output_dir=output_dirs["interpretability"],
+                method_name=method_name,
+                gradcam=gradcam,
+                curve_steps=config.interpretation.curve_steps,
+                mask_fraction=config.interpretation.mask_fraction,
+            )
+            reports.append(report)
 
     if gradcam is not None:
         gradcam.close()
@@ -468,3 +488,31 @@ def compare_interpretability(
     if comparison_gradcam is not None:
         comparison_gradcam.close()
     return generated
+
+
+def summarize_results(root_dir: str | Path = "artifacts/experiments") -> list[dict[str, object]]:
+    root = Path(root_dir)
+    rows: list[dict[str, object]] = []
+    for metrics_path in sorted(root.rglob("test_metrics.json")):
+        experiment_dir = metrics_path.parent.parent
+        experiment_name = experiment_dir.name
+        metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+        resolved_config_path = experiment_dir / "resolved_config.json"
+        config_payload = json.loads(resolved_config_path.read_text(encoding="utf-8")) if resolved_config_path.exists() else {}
+        rows.append(
+            {
+                "experiment_name": experiment_name,
+                "model": config_payload.get("model", {}).get("name", ""),
+                "loss_name": config_payload.get("training", {}).get("loss_name", ""),
+                "accuracy": metrics.get("accuracy"),
+                "precision": metrics.get("precision"),
+                "recall": metrics.get("recall"),
+                "specificity": metrics.get("specificity"),
+                "f1": metrics.get("f1"),
+                "roc_auc": metrics.get("roc_auc"),
+                "pr_auc": metrics.get("pr_auc"),
+                "threshold": metrics.get("threshold"),
+            }
+        )
+    _save_experiment_summary(rows, root / "summary_results.csv")
+    return rows

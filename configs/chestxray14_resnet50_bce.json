@@ -1,0 +1,38 @@
+{
+  "experiment_name": "resnet50_bce",
+  "seed": 42,
+  "dataset": {
+    "manifest_path": "artifacts/manifests/chestxray14_binary.csv",
+    "image_size": 224,
+    "batch_size": 16,
+    "num_workers": 0
+  },
+  "model": {
+    "name": "resnet50",
+    "pretrained": true,
+    "freeze_backbone": false,
+    "gradcam_target_layer": "layer4"
+  },
+  "training": {
+    "device": "auto",
+    "epochs": 8,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0001,
+    "loss_name": "bce",
+    "early_stopping_patience": 3,
+    "save_every_epoch": false
+  },
+  "evaluation": {
+    "threshold_metric": "f1",
+    "save_predictions": true,
+    "save_plots": true
+  },
+  "interpretation": {
+    "num_examples": 8,
+    "mask_fraction": 0.2,
+    "curve_steps": 10
+  },
+  "output": {
+    "root_dir": "artifacts/experiments"
+  }
+}

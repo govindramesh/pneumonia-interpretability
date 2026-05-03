@@ -12,7 +12,7 @@ from .data import (
     verify_negative_labels,
     verify_split_integrity,
 )
-from .runner import compare_interpretability, evaluate_experiment, interpret_experiment, train_experiment
+from .runner import compare_interpretability, evaluate_experiment, interpret_experiment, summarize_results, train_experiment
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,13 +36,17 @@ def build_parser() -> argparse.ArgumentParser:
         ("train", "Train an experiment from JSON config"),
         ("evaluate", "Evaluate a saved checkpoint from JSON config"),
         ("interpret", "Generate interpretability outputs from JSON config"),
+        ("summarize_results", "Aggregate experiment test metrics into one CSV table"),
     ):
         command_parser = subparsers.add_parser(name, help=help_text)
-        command_parser.add_argument("--config", required=True)
-        command_parser.add_argument("--checkpoint", default=None)
+        if name in {"train", "evaluate", "interpret"}:
+            command_parser.add_argument("--config", required=True)
+            command_parser.add_argument("--checkpoint", default=None)
         if name == "interpret":
             command_parser.add_argument("--comparison-config", default=None)
             command_parser.add_argument("--comparison-checkpoint", default=None)
+        if name == "summarize_results":
+            command_parser.add_argument("--root-dir", default="artifacts/experiments")
 
     return parser
 
@@ -121,6 +125,14 @@ def interpret_main(argv: list[str] | None = None) -> None:
     print(f"Saved {len(reports)} explanation reports.")
 
 
+def summarize_results_main(argv: list[str] | None = None) -> None:
+    parser = build_parser()
+    args = parser.parse_args(["summarize_results"] + (argv or []))
+    rows = summarize_results(root_dir=args.root_dir)
+    print(f"Found {len(rows)} completed experiments.")
+    print(f"Saved summary CSV to {Path(args.root_dir) / 'summary_results.csv'}")
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
@@ -161,3 +173,5 @@ def main() -> None:
         if getattr(args, "comparison_checkpoint", None):
             extra_args += ["--comparison-checkpoint", args.comparison_checkpoint]
         interpret_main(extra_args)
+    elif args.command == "summarize_results":
+        summarize_results_main(["--root-dir", args.root_dir])

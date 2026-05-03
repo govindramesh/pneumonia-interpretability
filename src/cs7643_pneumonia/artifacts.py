@@ -145,6 +145,27 @@ def plot_faithfulness_curve(fractions: list[float], scores: list[float], output_
     plt.close(fig)
 
 
+def plot_dual_faithfulness_curves(
+    fractions: list[float],
+    deletion_scores: list[float],
+    insertion_scores: list[float],
+    output_path: str | Path,
+    title: str,
+) -> None:
+    plt = _require_plotting()
+    fig, ax = plt.subplots(figsize=(5.5, 4))
+    ax.plot(fractions, deletion_scores, marker="o", label="Deletion")
+    ax.plot(fractions, insertion_scores, marker="s", label="Insertion")
+    ax.set_xlabel("Masked/Inserted Fraction")
+    ax.set_ylabel("Predicted Pneumonia Probability")
+    ax.set_title(title)
+    ax.legend()
+    fig.tight_layout()
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=200)
+    plt.close(fig)
+
+
 def save_side_by_side_explanations(base_image: np.ndarray, primary_map: np.ndarray, comparison_map: np.ndarray, output_path: str | Path, primary_label: str, comparison_label: str) -> None:
     plt = _require_plotting()
     fig, axes = plt.subplots(2, 3, figsize=(10, 6))
