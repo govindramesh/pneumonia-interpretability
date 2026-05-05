@@ -387,6 +387,38 @@ What the current numbers suggest:
 
 ## Example artifacts
 
+### ROC / PR gallery for all models
+
+#### CNN weighted BCE
+
+![CNN ROC](artifacts/experiments/cnn_weighted_bce/plots/test_roc.png)
+
+![CNN PR](artifacts/experiments/cnn_weighted_bce/plots/test_pr.png)
+
+#### ResNet-50 BCE
+
+![ResNet50 BCE ROC](artifacts/experiments/resnet50_bce/plots/test_roc.png)
+
+![ResNet50 BCE PR](artifacts/experiments/resnet50_bce/plots/test_pr.png)
+
+#### ResNet-50 weighted BCE
+
+![ResNet50 weighted BCE ROC](artifacts/experiments/resnet50_weighted_bce/plots/test_roc.png)
+
+![ResNet50 weighted BCE PR](artifacts/experiments/resnet50_weighted_bce/plots/test_pr.png)
+
+#### DINOv2 linear BCE
+
+![DINOv2 BCE ROC](artifacts/experiments/dinov2_linear_bce/plots/test_roc.png)
+
+![DINOv2 BCE PR](artifacts/experiments/dinov2_linear_bce/plots/test_pr.png)
+
+#### DINOv2 linear weighted BCE
+
+![DINOv2 weighted BCE ROC](artifacts/experiments/dinov2_linear_weighted_bce/plots/test_roc.png)
+
+![DINOv2 weighted BCE PR](artifacts/experiments/dinov2_linear_weighted_bce/plots/test_pr.png)
+
 ### CNN baseline plots
 
 Artifacts:
