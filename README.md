@@ -391,33 +391,38 @@ What the current numbers suggest:
 
 #### CNN weighted BCE
 
-![CNN ROC](artifacts/experiments/cnn_weighted_bce/plots/test_roc.png)
-
-![CNN PR](artifacts/experiments/cnn_weighted_bce/plots/test_pr.png)
+<p>
+  <img src="artifacts/experiments/cnn_weighted_bce/plots/test_roc.png" alt="CNN ROC" width="48%" />
+  <img src="artifacts/experiments/cnn_weighted_bce/plots/test_pr.png" alt="CNN PR" width="48%" />
+</p>
 
 #### ResNet-50 BCE
 
-![ResNet50 BCE ROC](artifacts/experiments/resnet50_bce/plots/test_roc.png)
-
-![ResNet50 BCE PR](artifacts/experiments/resnet50_bce/plots/test_pr.png)
+<p>
+  <img src="artifacts/experiments/resnet50_bce/plots/test_roc.png" alt="ResNet50 BCE ROC" width="48%" />
+  <img src="artifacts/experiments/resnet50_bce/plots/test_pr.png" alt="ResNet50 BCE PR" width="48%" />
+</p>
 
 #### ResNet-50 weighted BCE
 
-![ResNet50 weighted BCE ROC](artifacts/experiments/resnet50_weighted_bce/plots/test_roc.png)
-
-![ResNet50 weighted BCE PR](artifacts/experiments/resnet50_weighted_bce/plots/test_pr.png)
+<p>
+  <img src="artifacts/experiments/resnet50_weighted_bce/plots/test_roc.png" alt="ResNet50 weighted BCE ROC" width="48%" />
+  <img src="artifacts/experiments/resnet50_weighted_bce/plots/test_pr.png" alt="ResNet50 weighted BCE PR" width="48%" />
+</p>
 
 #### DINOv2 linear BCE
 
-![DINOv2 BCE ROC](artifacts/experiments/dinov2_linear_bce/plots/test_roc.png)
-
-![DINOv2 BCE PR](artifacts/experiments/dinov2_linear_bce/plots/test_pr.png)
+<p>
+  <img src="artifacts/experiments/dinov2_linear_bce/plots/test_roc.png" alt="DINOv2 BCE ROC" width="48%" />
+  <img src="artifacts/experiments/dinov2_linear_bce/plots/test_pr.png" alt="DINOv2 BCE PR" width="48%" />
+</p>
 
 #### DINOv2 linear weighted BCE
 
-![DINOv2 weighted BCE ROC](artifacts/experiments/dinov2_linear_weighted_bce/plots/test_roc.png)
-
-![DINOv2 weighted BCE PR](artifacts/experiments/dinov2_linear_weighted_bce/plots/test_pr.png)
+<p>
+  <img src="artifacts/experiments/dinov2_linear_weighted_bce/plots/test_roc.png" alt="DINOv2 weighted BCE ROC" width="48%" />
+  <img src="artifacts/experiments/dinov2_linear_weighted_bce/plots/test_pr.png" alt="DINOv2 weighted BCE PR" width="48%" />
+</p>
 
 ### CNN baseline plots
 
